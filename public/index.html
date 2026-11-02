@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Groq Relay · 国内可用的 Groq API 反向代理</title>
+  <meta name="description" content="部署在 Netlify 上的 Groq API 反向代理：用美国节点转发请求，解决 Groq 封锁中国大陆 IP 导致的直连超时。BYOK 模式，OpenAI SDK 兼容，只需改 base URL。">
+  <meta name="theme-color" content="#0b0d12">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Groq Relay 首页">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13l1-8Z"/></svg>
+      </span>
+      <span class="brand-name">Groq<span class="brand-accent">Relay</span></span>
+    </a>
+    <nav class="site-nav" id="siteNav" aria-label="站点导航">
+      <a href="#how">原理</a>
+      <a href="#start">快速开始</a>
+      <a href="#playground">在线调试</a>
+      <a href="#deploy">部署</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="header-actions">
+      <span class="health-badge" id="healthBadge"><span class="health-dot"></span><span id="healthText">检测中</span></span>
+      <button class="menu-btn" id="menuBtn" aria-label="展开导航" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="hero-copy reveal">
+        <p class="eyebrow"><span class="dot-live"></span>NETLIFY FUNCTIONS · 美国出口 IP</p>
+        <h1>在国内，稳定调用 <span class="grad">Groq API</span></h1>        <p class="lede">
+          Groq 按 IP 地区限制访问，中国大陆直连会超时或被拒。这个 Netlify 反向代理把请求从美国节点转发给 Groq，
+          再把响应（含 SSE 流式输出）原路带回。OpenAI SDK 只需改一个 base URL，<strong>零代码改动</strong>。
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#playground">立即在线调试
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <button class="btn btn-ghost" id="copyBaseHero" type="button">复制 Base URL</button>
+        </div>
+        <ul class="hero-facts">
+          <li><strong>BYOK</strong> 你的 Key 只存在你手里</li>
+          <li><strong>流式</strong> SSE 透传，不缓冲</li>
+          <li><strong>兼容</strong> OpenAI SDK / LangChain / 任意 HTTP 客户端</li>
+        </ul>
+      </div>
+
+      <aside class="status-card reveal" aria-label="代理状态">
+        <div class="status-card-head">
+          <span>Relay 状态</span>
+          <span class="pill" id="statusPill">检查中</span>
+        </div>
+        <dl class="status-grid">
+          <div><dt>代理端点</dt><dd id="statusBase">/v1</dd></div>
+          <div><dt>上游地址</dt><dd id="statusUpstream">api.groq.com/openai/v1</dd></div>
+          <div><dt>访问密码</dt><dd id="statusPassword">—</dd></div>
+          <div><dt>响应耗时</dt><dd id="statusLatency">—</dd></div>
+        </dl>
+        <p class="status-note">Key 不会经过本站服务器存储：浏览器 → Netlify 函数 → Groq，函数仅做内存内透传。</p>
+      </aside>
+    </section>
+
+    <section class="section" id="how">
+      <div class="section-head reveal">
+        <p class="kicker">HOW IT WORKS</p>
+        <h2>一条链路，绕开“地区不可用”</h2>
+        <p class="section-sub">问题不在你的网络，而在出口 IP。代理只改变“从哪里出发”，不改变你是谁。</p>
+      </div>
+      <div class="flow reveal">
+        <div class="flow-node">
+          <span class="flow-icon">🧑‍💻</span>
+          <h3>你的客户端</h3>
+          <p>浏览器 / SDK / 任意脚本，把请求发到本站的 <code>/v1</code>。</p>
+          <span class="flow-tag">中国大陆 IP</span>
+        </div>
+        <div class="flow-arrow" aria-hidden="true"><span></span></div>
+        <div class="flow-node flow-node-accent">
+          <span class="flow-icon">⚡</span>
+          <h3>Netlify Function</h3>
+          <p>运行在 AWS 美国节点（默认 <code>cmh</code>），以美国 IP 调用 Groq。</p>
+          <span class="flow-tag">美国出口 IP</span>
+        </div>
+        <div class="flow-arrow" aria-hidden="true"><span></span></div>
+        <div class="flow-node">
+          <span class="flow-icon">🦙</span>
+          <h3>Groq API</h3>
+          <p><code>api.groq.com/openai/v1/*</code>，返回 JSON 或 SSE 流。</p>
+          <span class="flow-tag">正常响应</span>
+        </div>
+      </div>
+      <div class="flow-notes reveal">
+        <div><strong>为什么有效？</strong>Groq 的访问限制基于来源 IP。函数在境外执行，请求从境外发起，自然不再被拒。</div>
+        <div><strong>为什么安全？</strong>代理只转发白名单请求头，不保存 Key、不落库对话；你的 Key 只出现在请求的 <code>Authorization</code> 头里。</div>
+        <div><strong>为什么便宜？</strong>Netlify 免费层即可起步；Groq 的额度消耗记在你自己的账号上，与站点所有者无关。</div>
+      </div>
+    </section>
+
+    <section class="section" id="start">
+      <div class="section-head reveal">
+        <p class="kicker">QUICK START</p>
+        <h2>把 base URL 换掉就行</h2>
+        <p class="section-sub">下面四种方式任选其一。把 <code>https://your-site.netlify.app</code> 换成你的真实域名。</p>
+      </div>
+
+      <div class="baseurl-box reveal">
+        <span class="baseurl-label">Base URL</span>
+        <code id="baseUrlText">https://your-site.netlify.app/v1</code>
+        <button class="btn btn-small" id="copyBase" type="button">复制</button>
+      </div>
+
+      <div class="code-panel reveal">
+        <div class="tabs" role="tablist" aria-label="代码示例">
+          <button class="tab active" role="tab" aria-selected="true" data-lang="curl">cURL</button>
+          <button class="tab" role="tab" aria-selected="false" data-lang="python">Python</button>
+          <button class="tab" role="tab" aria-selected="false" data-lang="node">Node.js</button>
+          <button class="tab" role="tab" aria-selected="false" data-lang="fetch">浏览器 fetch</button>
+          <button class="btn-copy" id="copyCode" type="button" aria-label="复制代码">复制</button>
+        </div>
+        <pre class="code-block"><code id="codeBlock"></code></pre>
+      </div>
+    </section>
+
+    <section class="section" id="playground">
+      <div class="section-head reveal">
+        <p class="kicker">PLAYGROUND</p>
+        <h2>在线调试</h2>
+        <p class="section-sub">填你自己的 Groq API Key（<code>gsk_</code> 开头），当场验证代理是否可用。Key 只保存在本机浏览器。</p>
+      </div>
+
+      <div class="playground reveal">
+        <div class="playground-toolbar">
+          <label class="field grow">
+            <span class="field-label">Groq API Key</span>
+            <input id="apiKey" type="password" placeholder="gsk_..." autocomplete="off" spellcheck="false" aria-describedby="keyHint">
+          </label>
+          <label class="field grow" id="relayPwWrap" hidden>
+            <span class="field-label">访问密码 <em>（本站启用了 RELAY_PASSWORD 时填写）</em></span>
+            <input id="relayPassword" type="password" placeholder="relay 密码" autocomplete="off">
+          </label>
+          <div class="field field-actions">
+            <span class="field-label">&nbsp;</span>
+            <div class="inline-actions">
+              <button class="btn btn-small btn-primary" id="saveKey" type="button">保存</button>
+              <button class="btn btn-small" id="clearKey" type="button">清除</button>
+            </div>
+          </div>
+        </div>
+        <p class="key-hint" id="keyHint">提示：Key 保存在 localStorage，仅用于本页对代理的请求，不会上传到本站服务器以外的任何地方。</p>
+
+        <div class="playground-bar">
+          <label class="field">
+            <span class="field-label">模型</span>
+            <select id="modelSelect" aria-label="选择 Groq 模型"></select>
+          </label>
+          <button class="btn btn-small" id="refreshModels" type="button">刷新模型列表</button>
+          <button class="btn btn-small" id="testConnection" type="button">测试连接</button>
+          <span class="chat-status" id="connStatus"></span>
+        </div>
+
+        <div class="chat-log" id="chatLog" aria-live="polite">
+          <div class="chat-empty" id="chatEmpty">
+            <span class="chat-empty-icon">💬</span>
+            <p>填好 Key 后，在下方提问即可验证代理链路。</p>
+            <p class="muted">试试点“发送”问一句：用一句话介绍你自己。</p>
+          </div>
+        </div>
+
+        <form class="chat-form" id="chatForm">
+          <textarea id="chatInput" rows="3" placeholder="向 Groq 提问…（Ctrl + Enter 发送）" aria-label="输入消息"></textarea>
+          <div class="chat-actions">
+            <span class="chat-status" id="chatStatus"></span>
+            <button class="btn btn-small" id="stopBtn" type="button" hidden>停止</button>
+            <button class="btn btn-primary" id="sendBtn" type="submit">发送
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="section" id="deploy">
+      <div class="section-head reveal">
+        <p class="kicker">DEPLOY</p>
+        <h2>部署你自己的副本</h2>
+        <p class="section-sub">整个项目零依赖：静态页面 + 两个 Netlify Functions。仓库根目录执行即可。</p>
+      </div>
+
+      <div class="deploy-grid">
+        <div class="deploy-card reveal">
+          <h3><span class="num">01</span>推送到 GitHub</h3>
+          <p>把本目录推到你的仓库，然后在 Netlify 里 “Add new site → Import an existing project”。</p>
+        </div>
+        <div class="deploy-card reveal">
+          <h3><span class="num">02</span>配置构建</h3>
+          <p>Build command 留空，Publish directory 填 <code>public</code>，Functions directory 填 <code>netlify/functions</code>。</p>
+          <p class="muted">这些在 <code>netlify.toml</code> 里已经写好，通常无需手动改。</p>
+        </div>
+        <div class="deploy-card reveal">
+          <h3><span class="num">03</span>或用 CLI 一步部署</h3>
+          <pre class="mini-code"><code>npm i -g netlify-cli
+netlify login
+netlify deploy --prod</code></pre>
+        </div>
+      </div>
+
+      <h3 class="subhead reveal">可选环境变量</h3>
+      <p class="table-hint">← 左右滑动查看完整表格 →</p>
+      <div class="table-wrap reveal">
+        <table class="env-table">
+          <thead><tr><th>变量</th><th>必填</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>GROQ_UPSTREAM_BASE</code></td><td>否</td><td>上游地址，默认 <code>https://api.groq.com/openai/v1</code>；必须是 OpenAI 兼容前缀。</td></tr>
+            <tr><td><code>RELAY_PASSWORD</code></td><td>否</td><td>设置后所有代理请求必须带 <code>x-relay-password</code> 头，防止域名被扫描滥用。</td></tr>
+            <tr><td><code>ALLOWED_ORIGINS</code></td><td>否</td><td>允许跨域的来源，逗号分隔；默认 <code>*</code>。填自己站点可收紧。</td></tr>
+            <tr><td><code>UPSTREAM_TIMEOUT_MS</code></td><td>否</td><td>等待上游响应头的超时（1000–58000），默认 55000。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note reveal">环境变量修改后需要重新部署（Deploys → Trigger deploy）才会生效。</p>
+    </section>
+
+    <section class="section" id="limits">
+      <div class="section-head reveal">
+        <p class="kicker">LIMITS</p>
+        <h2>已知限制</h2>
+        <p class="section-sub">这些是 Netlify 平台的硬限制，部署前请确认你的用法在范围内。</p>
+      </div>
+      <div class="table-hint">← 左右滑动查看完整表格 →</div>
+      <div class="table-wrap reveal">
+        <table class="limits-table">
+          <thead><tr><th>项目</th><th>限制</th><th>影响与建议</th></tr></thead>
+          <tbody>
+            <tr><td>单次函数执行</td><td>60 秒</td><td>超长流式回答可能被截断；一般对话与 Groq 的高速推理远低于此。</td></tr>
+            <tr><td>请求体</td><td>6 MB</td><td>音频转录（Whisper）大文件需先压缩或分段。</td></tr>
+            <tr><td>响应体</td><td>流式 20 MB / 缓冲 6 MB</td><td>普通聊天与配音音频足够；超长拼接类输出留意。</td></tr>
+            <tr><td>并发与额度</td><td>按 Netlify 计划</td><td>免费层按函数调用次数计费；高频使用请设 RELAY_PASSWORD 或升级计划。</td></tr>
+            <tr><td>上游</td><td>仅 Groq</td><td>不开放任意 URL 转发，避免 SSRF；需要其他上游可自行改 <code>GROQ_UPSTREAM_BASE</code>。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" id="faq">
+      <div class="section-head reveal">
+        <p class="kicker">FAQ</p>
+        <h2>常见问题</h2>
+      </div>
+      <div class="faq reveal">
+        <details>
+          <summary>为什么中国大陆访问不了 Groq？</summary>
+          <p>Groq 按来源 IP 做地区限制，中国大陆网络直连 <code>api.groq.com</code> 通常超时或被拒绝。本代理让请求从 Netlify 美国节点发出，从而恢复正常。</p>
+        </details>
+        <details>
+          <summary>我的 API Key 安全吗？</summary>
+          <p>Key 只保存在你浏览器的 localStorage 里。每次请求放在 <code>Authorization: Bearer …</code> 头中，经 Netlify 函数原样透传给 Groq。代理代码不写日志、不落库、不做任何缓存。前端与函数代码都在仓库里，可自行审计。</p>
+        </details>
+        <details>
+          <summary>注册 Groq 账号还需要翻墙吗？</summary>
+          <p>需要一次。代理只能解决 API 调用阶段的网络可达性；注册、验证、充值等网页操作仍需你自行解决网络问题。拿到 Key 之后，日常调用就都可以走本站了。</p>
+        </details>
+        <details>
+          <summary>会不会被陌生人刷爆？</summary>
+          <p>默认 BYOK 公开模式：任何人用你的代理都必须携带自己的 Key，消耗的是他们自己的 Groq 额度。若担心 Netlify 调用额度被白白消耗，在 Netlify 环境变量里设置 <code>RELAY_PASSWORD</code>，页面会自动要求填写访问密码。</p>
+        </details>
+        <details>
+          <summary>和 Cloudflare Workers 方案相比呢？</summary>
+          <p>思路完全相同：在境外边缘/函数节点做透明转发。Cloudflare 免费额度更大，本方案按需求部署在 Netlify。两边的函数代码都只有一两百行，迁移成本很低。</p>
+        </details>
+        <details>
+          <summary>为什么不用 Netlify 的 redirect 代理？</summary>
+          <p>纯 redirect 代理会被 CDN 层缓冲 SSE 流，聊天会“卡住半天后一次性出现”，且无法自定义 CORS、密码与错误格式。本方案用 Functions 透传流式 body，体验与直连一致。</p>
+        </details>
+        <details>
+          <summary>Netlify 站点本身在国内访问稳定吗？</summary>
+          <p>Netlify 没有中国大陆节点，通常可访问但延迟因运营商而异。建议绑定自己的域名并观察实际线路；如果本地访问不稳，可把同一份代码部署到 Cloudflare Pages 等其它平台。</p>
+        </details>
+        <details>
+          <summary>都支持哪些端点？</summary>
+          <p>Groq 的全部 OpenAI 兼容端点：<code>/chat/completions</code>、<code>/models</code>、<code>/audio/transcriptions</code>、<code>/audio/translations</code>、<code>/embeddings</code>、<code>/audio/speech</code> 等，以 Groq 上游实际提供为准。</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p><strong>Groq Relay</strong> · BYOK 反向代理 · 仅供个人学习与合规使用，请遵守 <a href="https://console.groq.com/docs/legal" target="_blank" rel="noreferrer noopener">Groq 服务条款</a>。</p>
+    <p class="muted">本站不存储 API Key 与对话内容；可用性取决于 Netlify 与 Groq，不提供 SLA。中国大陆访问本站域名如不稳定，可自行绑定域名或迁移部署。</p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
