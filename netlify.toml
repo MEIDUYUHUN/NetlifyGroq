@@ -2,23 +2,8 @@
   publish = "public"
   functions = "netlify/functions"
 
-[[redirects]]
-  from = "/v1/*"
-  to = "/.netlify/functions/v1/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/v1"
-  to = "/.netlify/functions/v1"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/health"
-  to = "/.netlify/functions/healthz"
-  status = 200
-  force = true
+# 函数使用 in-source 路由（netlify/functions/v1.mjs 与 healthz.mjs 里的 export const config.path），
+# 不要再额外配置 /v1 或 /health 的 redirects：force rewrite 会覆盖函数路由并导致 404。
 
 [[headers]]
   for = "/*"
