@@ -53,15 +53,33 @@ node --test tests/proxy.test.mjs
 
 覆盖：路径映射、query 透传、SSE 流式、multipart 音频上传、上游 401 透传、CORS 预检、RELAY_PASSWORD 鉴权、ALLOWED_ORIGINS 白名单、502/504 错误、healthz。
 
-### 部署到 Netlify
+### 部署到 Netlify（GitHub 网页导入，推荐）
 
-方式一：GitHub 导入
+1. 在 GitHub 新建仓库（public / private 均可），推送本目录：
 
-1. 把本目录推到你的 GitHub 仓库；
-2. Netlify → **Add new site** → **Import an existing project**；
-3. Build command 留空，Publish directory 填 `public`，Functions directory 填 `netlify/functions`（或直接使用仓库里的 `netlify.toml`）。
+```bash
+git remote add origin https://github.com/<你的用户名>/groq-relay.git
+git push -u origin main
+```
 
-方式二：CLI 直接部署
+2. Netlify → **Add new site** → **Import an existing project** → **GitHub** → 选择仓库。
+3. 构建配置无需修改：`netlify.toml` 已声明 `publish = "public"`、`functions = "netlify/functions"`；Build command 留空。
+4. 点击 **Deploy site**。部署完成后进入 **Site configuration → Change site name**，把站点名改为 `groq`（若被占用则用 `groq-relay` 等）。
+5. （可选）在 **Environment variables** 添加 `RELAY_PASSWORD` 等变量，然后 **Deploys → Trigger deploy** 使其生效。
+
+### 部署后验证
+
+```bash
+# 健康检查：应返回 {"ok":true,...}
+curl -s https://<站点>.netlify.app/health
+
+# 代理链路：不带 Key 时应返回 401（说明请求已到达 Groq）
+curl -s -o /dev/null -w '%{http_code}\n' https://<站点>.netlify.app/v1/models
+```
+
+浏览器打开站点 →「在线调试」→ 填入自己的 Groq Key，即可验证完整的流式对话。
+
+### 方式二：CLI 直接部署（可选）
 
 ```bash
 npm i -g netlify-cli
